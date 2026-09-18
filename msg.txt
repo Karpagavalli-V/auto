@@ -1,48 +1,17 @@
-#include <iostream>
-#include <vector>
-#include <string>
-#include <algorithm>
-using namespace std;
+def checkVisa(x1, x2, y1, y2, z1, z2):
+    if x1 >= x2 and y1 >= y2 and z1 <= z2:
+        return "YES"
+    else:
+        return "NO"
 
-struct Student {
-    string name;
-    double height;
-};
 
-int main() {
-    int T;
-    cin >> T;
+import sys
 
-    vector<Student> students;
-    string name;
-    double height;
-
-    // Read until q or Q
-    while (cin >> name) {
-        if (name == "q" || name == "Q")
-            break;
-
-        cin >> height;
-        students.push_back({name, height});
-    }
-
-    // Copy heights and sort in descending order
-    vector<double> heights;
-
-    for (const auto& s : students)
-        heights.push_back(s.height);
-
-    sort(heights.begin(), heights.end(), greater<double>());
-
-    // Height of the T-th tallest student
-    double cutoff = heights[T - 1];
-
-    // Print selected students in their original order
-    for (const auto& s : students) {
-        if (s.height >= cutoff) {
-            cout << s.name << endl;
-        }
-    }
-
-    return 0;
-}
+print(checkVisa(
+    int(sys.argv[1]),
+    int(sys.argv[2]),
+    int(sys.argv[3]),
+    int(sys.argv[4]),
+    int(sys.argv[5]),
+    int(sys.argv[6])
+), end='')
