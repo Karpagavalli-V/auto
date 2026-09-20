@@ -11,7 +11,9 @@ except Exception:
     raise
 
 
-MIN_TYPE_INTERVAL = 0.001
+pyautogui.PAUSE = 0
+MIN_TYPE_INTERVAL = 0.0001
+DEFAULT_TYPE_INTERVAL = MIN_TYPE_INTERVAL
 
 
 @dataclass(frozen=True)
@@ -44,12 +46,36 @@ def type_text(text: str, interval: float, debug: bool = False) -> None:
     type_multiline(normalize_newlines(text), interval, debug=debug)
 
 
-def _clear_editor_indent() -> None:
-    """Remove indentation inserted on the newly-created, still-empty line."""
-    pyautogui.press('home')
-    pyautogui.press('home')
-    pyautogui.hotkey('shift', 'end')
-    pyautogui.press('backspace')
+def _leading_whitespace(line: str) -> str:
+    return line[:len(line) - len(line.lstrip(' \t'))]
+
+
+def _indent_unit(lines: list) -> int:
+    widths = [len(_leading_whitespace(line)) for line in lines]
+    positive_widths = [width for width in widths if width]
+    return min(positive_widths) if positive_widths else 1
+
+
+def _type_segment(text: str, interval: float) -> None:
+    for character in text:
+        if character == '\t':
+            pyautogui.press('tab')
+        else:
+            pyautogui.write(character, interval=interval)
+
+
+def _adjust_relative_indent(previous_indent: str, desired_indent: str,
+                            indent_unit: int, interval: float,
+                            previous_line_blank: bool) -> None:
+    """Adjust only the source indentation delta on the new editor line."""
+    previous_width = len(previous_indent)
+    desired_width = len(desired_indent)
+    if desired_width < previous_width:
+        levels = max(1, (previous_width - desired_width + indent_unit - 1) // indent_unit)
+        for _ in range(levels):
+            pyautogui.hotkey('shift', 'tab')
+    elif desired_width > previous_width and previous_line_blank:
+        _type_segment(desired_indent[previous_width:], interval)
 
 
 def type_multiline(text: str, interval: float, debug: bool = False) -> None:
@@ -57,6 +83,10 @@ def type_multiline(text: str, interval: float, debug: bool = False) -> None:
     normalized = normalize_newlines(text)
     stats = get_text_stats(normalized)
     safe_interval = max(0.0, interval, MIN_TYPE_INTERVAL)
+    lines = normalized.split('\n')
+    indent_unit = _indent_unit(lines)
+    previous_indent = ''
+    previous_line_blank = False
     line_number = 1
     next_event_at = time.perf_counter()
 
@@ -67,28 +97,33 @@ def type_multiline(text: str, interval: float, debug: bool = False) -> None:
         )
         print(f"Mode: type; Interval: {safe_interval:g}")
 
-    for character_index, character in enumerate(normalized):
+    for line_index, line in enumerate(lines):
+        desired_indent = _leading_whitespace(line)
+        content = line[len(desired_indent):]
         try:
-            if safe_interval:
-                time.sleep(max(0.0, next_event_at - time.perf_counter()))
+            if line_index:
+                _adjust_relative_indent(previous_indent, desired_indent,
+                                        indent_unit, safe_interval,
+                                        previous_line_blank)
+            else:
+                _type_segment(desired_indent, safe_interval)
 
-            if character == '\n':
+            _type_segment(content, safe_interval)
+            previous_indent = desired_indent
+            previous_line_blank = not content
+
+            if line_index < len(lines) - 1:
+                if safe_interval:
+                    time.sleep(max(0.0, next_event_at - time.perf_counter()))
                 pyautogui.press('enter')
                 line_number += 1
-                _clear_editor_indent()
-            elif character == '\t':
-                pyautogui.press('tab')
-            else:
-                pyautogui.write(character, interval=0)
-
-            next_event_at = time.perf_counter() + safe_interval
-            if debug and (character == '\n' or character_index == len(normalized) - 1):
-                print(f"Typing line {line_number}/{stats.lines}; character {character_index + 1}/{stats.characters}")
+                next_event_at = time.perf_counter() + safe_interval
+                if debug:
+                    print(f"NEWLINE event after source line {line_number - 1}/{stats.lines}")
         except Exception as error:
             raise RuntimeError(
-                f"Typing failed in type mode at line {line_number}, "
-                f"character {character_index + 1} ({character!r}); "
-                f"progress {character_index}/{stats.characters}: {error}"
+                f"Typing failed in type mode at line {line_number}; "
+                f"progress {line_index + 1}/{stats.lines}: {error}"
             ) from error
     if debug:
         print(f"Typing complete: attempted {stats.characters}/{stats.characters} characters")
@@ -140,8 +175,8 @@ def main():
                         help='Run text-processing tests without controlling the mouse or keyboard')
     parser.add_argument('--start-delay', '-s', type=float, default=5.0,
                         help='Seconds to wait before typing starts (default: 5)')
-    parser.add_argument('--interval', '-i', type=float, default=0.01,
-                        help='Delay between keystrokes in seconds (default: 0.01)')
+    parser.add_argument('--interval', '-i', type=float, default=DEFAULT_TYPE_INTERVAL,
+                        help=f'Delay between keystrokes in seconds (default: {DEFAULT_TYPE_INTERVAL})')
     parser.add_argument('--repeat', '-r', type=int, default=1,
                         help='How many times to repeat the text (default: 1)')
     parser.add_argument('--between', '-b', type=float, default=1.0,
