@@ -13,7 +13,7 @@ pip install -r requirements.txt
 Usage
 
 ```bash
-python autotyper.py --text "Hello world" --start-delay 3 --interval 0.0001
+python autotyper.py --text "Hello world" --start-delay 3 --interval 0.05
 
 # or from a file
 python autotyper.py --file message.txt --start-delay 5 --repeat 3 --between 2
@@ -29,7 +29,7 @@ indentation inserted by an editor on a newly-created empty line before emitting
 the source line's own leading whitespace:
 
 ```bash
-python autotyper.py --file message.py --mode type --start-delay 5 --interval 0.0001
+python autotyper.py --file message.py --mode type --start-delay 5 --interval 0.05
 ```
 
 Run text-processing checks without controlling the keyboard or mouse:
@@ -39,8 +39,10 @@ python autotyper.py --self-test
 ```
 
 Add `--debug` for input counts, mode, interval, and concise progress. Type mode
-enforces a small minimum event interval for reliability, and disables pyautogui's
-default per-action pause; `--interval` is the primary speed control.
+uses a slower default event interval to give browser editors time to process
+keystrokes and suggestions, and disables pyautogui's default per-action pause;
+`--interval` is the primary speed control. Increase it further (for example,
+`0.1`) if the editor still misses or transforms characters.
 
 To test newline handling in a browser editor, focus the editor during the start
 delay and run:

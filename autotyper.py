@@ -13,7 +13,7 @@ except Exception:
 
 pyautogui.PAUSE = 0
 MIN_TYPE_INTERVAL = 0.0001
-DEFAULT_TYPE_INTERVAL = MIN_TYPE_INTERVAL
+DEFAULT_TYPE_INTERVAL = 0.05
 
 
 @dataclass(frozen=True)

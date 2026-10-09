@@ -1,17 +1,162 @@
-def checkVisa(x1, x2, y1, y2, z1, z2):
-    if x1 >= x2 and y1 >= y2 and z1 <= z2:
-        return "YES"
-    else:
-        return "NO"
+#include <stdio.h>
+#include <stdlib.h>
 
+typedef struct {
+    long long arr;
+    long long dur;
+} Request;
 
-import sys
+typedef struct {
+    Request reqs[5005];
+    int lhead;
+    int ltail;
+    int is_failed;
+    int completed_count;
+    int is_busy;
+    long long busy_until;
+    Request current_req;
+} Server;
 
-print(checkVisa(
-    int(sys.argv[1]),
-    int(sys.argv[2]),
-    int(sys.argv[3]),
-    int(sys.argv[4]),
-    int(sys.argv[5]),
-    int(sys.argv[6])
-), end='')
+Server servers[105];
+int active[105];
+int active_count;
+int ptr = 0;
+
+void advance_server_to_time(int sid, long long T) {
+    if (servers[sid].is_failed) return;
+    while (servers[sid].is_busy && servers[sid].busy_until <= T) {
+        servers[sid].completed_count++;
+        long long free_time = servers[sid].busy_until;
+        servers[sid].is_busy = 0;
+        
+        if (servers[sid].lhead < servers[sid].ltail) {
+            Request next_r = servers[sid].reqs[servers[sid].lhead++];
+            long long start_t = (free_time > next_r.arr) ? free_time : next_r.arr;
+            servers[sid].is_busy = 1;
+            servers[sid].current_req = next_r;
+            servers[sid].busy_until = start_t + next_r.dur;
+        }
+    }
+}
+
+void advance_all_to_time(long long T) {
+    for (int i = 1; i <= 100; i++) {
+        advance_server_to_time(i, T);
+    }
+}
+
+int main() {
+    int N, M;
+    if (scanf("%d %d", &N, &M) != 2) return 0;
+    
+    active_count = N;
+    for (int i = 0; i < N; i++) active[i] = i + 1;
+    for (int i = 1; i <= N; i++) {
+        servers[i].lhead = 0;
+        servers[i].ltail = 0;
+        servers[i].is_failed = 0;
+        servers[i].completed_count = 0;
+        servers[i].is_busy = 0;
+        servers[i].busy_until = 0;
+    }
+    
+    ptr = 0;
+    for (int e = 0; e < M; e++) {
+        char type;
+        if (scanf(" %c", &type) != 1) break;
+        if (type == 'R') {
+            long long t1, t2;
+            scanf("%lld %lld", &t1, &t2);
+            advance_all_to_time(t1);
+            
+            int target = active[ptr];
+            ptr = (ptr + 1) % active_count;
+            
+            Request r;
+            r.arr = t1;
+            r.dur = t2;
+            
+            if (!servers[target].is_busy) {
+                servers[target].is_busy = 1;
+                servers[target].current_req = r;
+                servers[target].busy_until = t1 + t2;
+            } else {
+                servers[target].reqs[servers[target].ltail++] = r;
+            }
+        } else if (type == 'F') {
+            int sid;
+            long long tfail;
+            scanf("%d %lld", &sid, &tfail);
+            advance_all_to_time(tfail);
+            
+            Request unp[5005];
+            int unp_count = 0;
+            
+            if (servers[sid].is_busy) {
+                unp[unp_count].arr = tfail;
+                unp[unp_count].dur = servers[sid].current_req.dur;
+                unp_count++;
+                servers[sid].is_busy = 0;
+            }
+            
+            while (servers[sid].lhead < servers[sid].ltail) {
+                Request qr = servers[sid].reqs[servers[sid].lhead++];
+                unp[unp_count].arr = tfail;
+                unp[unp_count].dur = qr.dur;
+                unp_count++;
+            }
+            
+            servers[sid].is_failed = 1;
+            
+            int remove_idx = -1;
+            for (int k = 0; k < active_count; k++) {
+                if (active[k] == sid) {
+                    remove_idx = k;
+                    break;
+                }
+            }
+            if (remove_idx != -1) {
+                for (int k = remove_idx; k < active_count - 1; k++) {
+                    active[k] = active[k + 1];
+                }
+                active_count--;
+                if (remove_idx < ptr) {
+                    ptr--;
+                } else if (remove_idx == ptr) {
+                    if (ptr >= active_count) ptr = 0;
+                }
+            }
+            
+            int redist_ptr = 0;
+            for (int k = 0; k < unp_count; k++) {
+                int target = active[redist_ptr];
+                redist_ptr = (redist_ptr + 1) % active_count;
+                
+                if (!servers[target].is_busy) {
+                    servers[target].is_busy = 1;
+                    servers[target].current_req = unp[k];
+                    servers[target].busy_until = tfail + unp[k].dur;
+                } else {
+                    servers[target].reqs[servers[target].ltail++] = unp[k];
+                }
+            }
+        }
+    }
+    
+    for (int i = 0; i < active_count; i++) {
+        int sid = active[i];
+        if (servers[sid].is_busy) servers[sid].completed_count++;
+        servers[sid].completed_count += (servers[sid].ltail - servers[sid].lhead);
+    }
+    
+    int max_comp = 0;
+    for (int sid = 1; sid <= N; sid++) {
+        if (servers[sid].completed_count > max_comp) {
+            max_comp = servers[sid].completed_count;
+        }
+    }
+    
+    printf("%d\n", max_comp);
+    return 0;
+}
+
